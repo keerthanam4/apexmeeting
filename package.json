@@ -1,0 +1,19 @@
+{
+  "name": "apexmeeting",
+  "version": "1.0.0",
+  "description": "ApexMeeting: An Intelligent Meeting Analytics and Knowledge Mining System Using Audio Processing, NLP, and Data Warehousing",
+  "main": "app.js",
+  "scripts": {
+    "start": "python -m http.server 3000"
+  },
+  "keywords": [
+    "meeting-analytics",
+    "speech-recognition",
+    "diarization",
+    "data-warehouse",
+    "olap",
+    "nlp"
+  ],
+  "author": "ApexMeeting Team",
+  "license": "MIT"
+}

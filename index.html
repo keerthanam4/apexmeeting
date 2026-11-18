@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ApexMeeting - Intelligent Meeting Analytics & Knowledge Mining System</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              900: '#0c4a6e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js for OLAP and Speaker Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800 bg-[#0f172a]/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-sky-500 to-emerald-400 p-[1.5px] flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <div class="w-full h-full bg-[#090d16] rounded-[10px] flex items-center justify-center">
+            <i data-lucide="activity" class="w-5 h-5 text-brand-400"></i>
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-sky-300 bg-clip-text text-transparent">ApexMeeting</span>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">v2.4 Enterprise</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Intelligent Meeting Analytics, NLP & Data Warehouse</p>
+        </div>
+      </div>
+
+      <!-- Center: Active Meeting Selector -->
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 shadow-inner">
+          <i data-lucide="layers" class="w-4 h-4 text-brand-400 mr-2"></i>
+          <span class="text-xs text-slate-400 mr-2 hidden md:inline">Active Meeting:</span>
+          <select id="meeting-select" class="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[220px] md:max-w-[340px] truncate">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <button id="btn-new-meeting-modal" class="flex items-center space-x-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium rounded-lg transition-all shadow-md shadow-brand-600/25">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">Ingest / Live</span>
+        </button>
+      </div>
+
+      <!-- Right: Warehouse Status & Guardrails -->
+      <div class="flex items-center space-x-3">
+        <div class="hidden lg:flex items-center space-x-2 text-xs px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" title="All extracted claims strictly verified against raw transcript">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+          <span class="font-medium">Grounding: <span id="header-grounding-score">98.8%</span></span>
+        </div>
+
+        <div class="hidden xl:flex items-center space-x-2 text-xs px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300">
+          <i data-lucide="database" class="w-3.5 h-3.5 text-brand-400"></i>
+          <span>Warehouse: <span id="header-warehouse-stat" class="font-bold text-white">4 Mtgs • Star Schema</span></span>
+        </div>
+
+        <!-- Language Selector -->
+        <select id="lang-select" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1 focus:outline-none">
+          <option value="en">🇺🇸 EN</option>
+          <option value="es">🇪🇸 ES</option>
+          <option value="de">🇩🇪 DE</option>
+          <option value="fr">🇫🇷 FR</option>
+          <option value="ja">🇯🇵 JA</option>
+          <option value="zh">🇨🇳 ZH</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="border-t border-slate-800/80 bg-slate-950/60 px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto flex space-x-1 overflow-x-auto no-scrollbar py-1">
+        <button data-tab="live" class="nav-tab active flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-slate-100">
+          <i data-lucide="mic" class="w-4 h-4"></i>
+          <span>Live Meeting & Ingestion</span>
+        </button>
+        <button data-tab="speaker" class="nav-tab flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-slate-100">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Speaker Intelligence</span>
+        </button>
+        <button data-tab="summary" class="nav-tab flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-slate-100">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>Summarization & Reports</span>
+        </button>
+        <button data-tab="warehouse" class="nav-tab flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-slate-100">
+          <i data-lucide="network" class="w-4 h-4"></i>
+          <span>Data Warehouse & OLAP</span>
+        </button>
+        <button data-tab="qa" class="nav-tab flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-slate-100">
+          <i data-lucide="message-square-code" class="w-4 h-4"></i>
+          <span>Meeting Knowledge Base & Q&A</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Persistent Synchronized Audio Player Bar -->
+  <div id="audio-player-bar" class="bg-slate-900/90 border-b border-slate-800 px-4 sm:px-8 py-2.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3 min-w-[200px]">
+      <button id="btn-audio-play" class="w-9 h-9 rounded-full bg-brand-600 hover:bg-brand-500 text-white flex items-center justify-center transition shadow-md shadow-brand-600/30">
+        <i data-lucide="play" id="icon-audio-play" class="w-4 h-4 fill-white ml-0.5"></i>
+      </button>
+      <div>
+        <div class="text-xs font-semibold text-white truncate max-w-[200px] md:max-w-[300px]" id="player-meeting-title">
+          Q4 Product Strategy & Architecture Migration
+        </div>
+        <div class="text-[11px] text-slate-400 flex items-center space-x-1.5">
+          <span id="player-active-speaker" class="text-brand-400 font-medium">Sarah Chen</span>
+          <span>•</span>
+          <span id="player-time-display" class="font-mono text-slate-300">00:00 / 07:45</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scrubber Slider -->
+    <div class="flex-1 min-w-[240px] flex items-center space-x-3">
+      <span class="text-[11px] font-mono text-slate-400" id="player-current-time">00:00</span>
+      <input type="range" id="audio-seekbar" min="0" max="465" value="0" step="1" 
+             class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-500 hover:h-2 transition-all">
+      <span class="text-[11px] font-mono text-slate-400" id="player-total-time">07:45</span>
+    </div>
+
+    <!-- Controls: Speed, Sync indicator -->
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center bg-slate-800 rounded-md px-2 py-1 text-xs space-x-1">
+        <i data-lucide="gauge" class="w-3.5 h-3.5 text-slate-400"></i>
+        <select id="player-speed" class="bg-transparent text-xs text-slate-200 focus:outline-none cursor-pointer">
+          <option value="0.75">0.75x</option>
+          <option value="1.0" selected>1.0x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2.0">2.0x</option>
+        </select>
+      </div>
+
+      <div class="flex items-center space-x-1 text-[11px] px-2 py-1 rounded bg-slate-800/80 text-slate-400 border border-slate-700" title="Transcript automatically scrolls and highlights active utterance">
+        <i data-lucide="refresh-cw" class="w-3 h-3 text-emerald-400"></i>
+        <span>Synced</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: LIVE MEETING & INGESTION -->
+    <!-- ========================================== -->
+    <section id="tab-content-live" class="tab-pane space-y-6">
+      
+      <!-- Top Grid: Live Processing & VAD Studio -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Live Microphone & Audio Canvas Panel (2 cols) -->
+        <div class="lg:col-span-2 glass-panel p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="radio" class="w-5 h-5 text-brand-400"></i>
+              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200">Real-Time Audio Ingestion & VAD</h2>
+            </div>
+            
+            <!-- VAD Indicator Badge -->
+            <div class="flex items-center space-x-2">
+              <span id="vad-indicator" class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                <span id="vad-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="vad-text">VAD Idle</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Dual Visualizer Canvases -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <div class="flex justify-between items-center text-[11px] text-slate-400 mb-1">
+                <span>Oscilloscope Waveform (Time Domain)</span>
+                <span class="font-mono text-slate-500">48kHz</span>
+              </div>
+              <div class="canvas-wrapper h-28 flex items-center justify-center">
+                <canvas id="canvas-waveform" width="340" height="112" class="w-full h-full"></canvas>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center text-[11px] text-slate-400 mb-1">
+                <span>Frequency Spectrum (FFT 512-band)</span>
+                <span class="font-mono text-slate-500">0 - 8kHz</span>
+              </div>
+              <div class="canvas-wrapper h-28 flex items-center justify-center">
+                <canvas id="canvas-spectrum" width="340" height="112" class="w-full h-full"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Recording Controls & Sensitivity Slider -->
+          <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
+            <div class="flex items-center space-x-3">
+              <button id="btn-start-mic" class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition shadow-md shadow-emerald-600/30">
+                <i data-lucide="mic" class="w-4 h-4"></i>
+                <span>Start Live Mic</span>
+              </button>
+              <button id="btn-stop-mic" disabled class="flex items-center space-x-2 px-4 py-2 bg-rose-600/40 text-rose-300 text-xs font-semibold rounded-lg cursor-not-allowed transition">
+                <i data-lucide="square" class="w-4 h-4"></i>
+                <span>Stop</span>
+              </button>
+            </div>
+
+            <!-- VAD Sensitivity Slider -->
+            <div class="flex items-center space-x-3 text-xs">
+              <span class="text-slate-400">VAD Threshold:</span>
+              <input type="range" id="vad-sensitivity" min="0.01" max="0.08" step="0.005" value="0.025" 
+                     class="w-24 h-1.5 bg-slate-700 rounded-lg cursor-pointer accent-brand-500">
+              <span id="vad-sens-label" class="font-mono text-slate-300 text-[11px]">Normal</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ingestion Pipeline Progress & Metadata (1 col) -->
+        <div class="glass-panel p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200">Processing Pipeline</h2>
+            <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Active ETL</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <!-- Step 1 -->
+            <div class="flex items-start space-x-3 p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[11px] mt-0.5">✓</div>
+              <div>
+                <div class="font-semibold text-slate-200">Voice Activity Detection (VAD)</div>
+                <div class="text-[11px] text-slate-400">Energy RMS segmentation & pause filtering</div>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="flex items-start space-x-3 p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[11px] mt-0.5">✓</div>
+              <div>
+                <div class="font-semibold text-slate-200">Speech-To-Text (ASR)</div>
+                <div class="text-[11px] text-slate-400">Continuous streaming + Whisper-aligned tokens</div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="flex items-start space-x-3 p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[11px] mt-0.5">✓</div>
+              <div>
+                <div class="font-semibold text-slate-200">Speaker Diarization</div>
+                <div class="text-[11px] text-slate-400">Voice embeddings & turn attribution</div>
+              </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="flex items-start space-x-3 p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+              <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-[11px] mt-0.5">✓</div>
+              <div>
+                <div class="font-semibold text-slate-200">Data Warehouse Ingestion</div>
+                <div class="text-[11px] text-slate-400">Star Schema OLAP facts & dimension tables</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-slate-800 flex justify-between text-[11px] text-slate-400">
+            <span>Latency SLA: <strong class="text-white">142ms</strong></span>
+            <span>Grounding: <strong class="text-emerald-400">Strict Verified</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Panel: Synchronized Timestamped Transcript -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="file-audio" class="w-5 h-5 text-brand-400"></i>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-200">Timestamped Transcript & Diarization Feed</h2>
+          </div>
+
+          <!-- Filters: Speaker & Search -->
+          <div class="flex items-center space-x-3">
+            <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 mr-1.5"></i>
+              <input type="text" id="transcript-search" placeholder="Search transcript..." 
+                     class="bg-transparent text-xs text-white focus:outline-none w-32 md:w-48">
+            </div>
+
+            <select id="transcript-speaker-filter" class="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none">
+              <option value="all">All Speakers</option>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Utterances List Container -->
+        <div id="transcript-container" class="space-y-3 max-h-[520px] overflow-y-auto pr-2">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: SPEAKER INTELLIGENCE -->
+    <!-- ========================================== -->
+    <section id="tab-content-speaker" class="tab-pane hidden space-y-6">
+      
+      <!-- Top Speaker Cards Row -->
+      <div id="speaker-cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Talk Time Share Donut -->
+        <div class="glass-panel p-5 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-brand-400"></i>
+              <h3 class="text-sm font-bold text-slate-200">Talk-Time Distribution (%)</h3>
+            </div>
+            <span class="text-xs text-slate-400">Diarization Cluster</span>
+          </div>
+          <div class="h-64 flex items-center justify-center">
+            <canvas id="chart-talk-time"></canvas>
+          </div>
+        </div>
+
+        <!-- Cadence & WPM Comparison Bar Chart -->
+        <div class="glass-panel p-5 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-400"></i>
+              <h3 class="text-sm font-bold text-slate-200">Speaking Cadence (Words Per Minute)</h3>
+            </div>
+            <span class="text-xs text-slate-400">Industry Avg: 130-150 WPM</span>
+          </div>
+          <div class="h-64 flex items-center justify-center">
+            <canvas id="chart-wpm"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Speaking Dynamics Table -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Speaking Dynamics & Conversation Dynamics Matrix</h3>
+          <span class="text-xs text-slate-400">Voice Analytics Engine</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 uppercase text-[11px]">
+                <th class="py-2.5 px-3">Speaker</th>
+                <th class="py-2.5 px-3">Role / Department</th>
+                <th class="py-2.5 px-3">Talk Share</th>
+                <th class="py-2.5 px-3">Cadence</th>
+                <th class="py-2.5 px-3">Avg Monologue</th>
+                <th class="py-2.5 px-3">Turns</th>
+                <th class="py-2.5 px-3">Sentiment Trend</th>
+                <th class="py-2.5 px-3">Engagement Score</th>
+              </tr>
+            </thead>
+            <tbody id="speaker-dynamics-tbody" class="divide-y divide-slate-800/60">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: SUMMARIZATION & REPORTS -->
+    <!-- ========================================== -->
+    <section id="tab-content-summary" class="tab-pane hidden space-y-6">
+      
+      <!-- Summarization Controls Bar -->
+      <div class="glass-panel p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-4">
+          
+          <!-- Length Selector -->
+          <div class="flex items-center space-x-2 text-xs">
+            <span class="text-slate-400 font-medium">Summary Depth:</span>
+            <div class="bg-slate-900 border border-slate-700 rounded-lg p-0.5 flex">
+              <button data-len="short" class="summary-len-btn px-2.5 py-1 text-xs rounded font-medium text-slate-400 hover:text-white">Short</button>
+              <button data-len="medium" class="summary-len-btn active px-2.5 py-1 text-xs rounded font-medium bg-brand-600 text-white">Medium</button>
+              <button data-len="detailed" class="summary-len-btn px-2.5 py-1 text-xs rounded font-medium text-slate-400 hover:text-white">Detailed</button>
+            </div>
+          </div>
+
+          <!-- Tone Selector -->
+          <div class="flex items-center space-x-2 text-xs">
+            <span class="text-slate-400 font-medium">Tone & Style:</span>
+            <select id="summary-tone-select" class="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+              <option value="executive">Executive / Professional</option>
+              <option value="technical">Technical / Architecture</option>
+              <option value="academic">Academic / Analytical</option>
+              <option value="agile">Agile / Action-Oriented</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Export Toolbar -->
+        <div class="flex items-center space-x-2">
+          <span class="text-xs text-slate-400 mr-1 hidden sm:inline">Export As:</span>
+          <button id="btn-export-pdf" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+            <i data-lucide="printer" class="w-3.5 h-3.5 text-rose-400"></i>
+            <span>PDF</span>
+          </button>
+          <button id="btn-export-word" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+            <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-400"></i>
+            <span>Word</span>
+          </button>
+          <button id="btn-export-md" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+            <i data-lucide="file-code" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>MD/TXT</span>
+          </button>
+          <button id="btn-export-csv" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+            <i data-lucide="table" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>CSV</span>
+          </button>
+          <button id="btn-export-json" class="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+            <i data-lucide="code" class="w-3.5 h-3.5 text-purple-400"></i>
+            <span>JSON</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Summary Cards Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left: Executive & Detailed Summaries (2 cols) -->
+        <div class="lg:col-span-2 space-y-6">
+          
+          <!-- Executive Summary -->
+          <div class="glass-panel p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="sparkles" class="w-5 h-5 text-brand-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Executive Summary</h3>
+              </div>
+              <span class="text-[10px] text-slate-400">Click citations to jump audio</span>
+            </div>
+            
+            <div id="executive-summary-content" class="space-y-3 text-sm text-slate-300">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Key Decisions Log -->
+          <div class="glass-panel p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Decisions Log</h3>
+              </div>
+              <span id="decision-count-badge" class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">3 Decisions</span>
+            </div>
+
+            <div id="decisions-container" class="space-y-3">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Action Items Matrix -->
+          <div class="glass-panel p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="list-todo" class="w-5 h-5 text-amber-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Action Items & Deliverables</h3>
+              </div>
+              <span id="action-count-badge" class="px-2 py-0.5 rounded-full text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">4 Action Items</span>
+            </div>
+
+            <div id="action-items-container" class="space-y-3">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Detailed Topic Breakdown -->
+          <div class="glass-panel p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="align-left" class="w-5 h-5 text-indigo-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Detailed Section Breakdown</h3>
+              </div>
+            </div>
+
+            <div id="detailed-breakdown-container" class="space-y-4 text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: Grounding Guardrails & Speaker-wise Recaps (1 col) -->
+        <div class="space-y-6">
+          
+          <!-- Hallucination Prevention & Evaluation Card -->
+          <div class="glass-panel p-5 space-y-4 border-l-4 border-l-emerald-500">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 text-emerald-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Hallucination Guardrails</h3>
+              </div>
+              <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-mono">Verified</span>
+            </div>
+
+            <!-- Guardrail Gauges -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center">
+                <div class="text-[11px] text-slate-400 mb-1">Factual Consistency</div>
+                <div id="guardrail-consistency" class="text-2xl font-extrabold text-emerald-400 font-mono">98.8%</div>
+                <div class="text-[10px] text-slate-500 mt-1">Grounding Ratio</div>
+              </div>
+              <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-center">
+                <div class="text-[11px] text-slate-400 mb-1">Info Coverage</div>
+                <div id="guardrail-coverage" class="text-2xl font-extrabold text-brand-400 font-mono">96.2%</div>
+                <div class="text-[10px] text-slate-500 mt-1">Key Topics Retained</div>
+              </div>
+            </div>
+
+            <!-- Zero Hallucination Audit Checklist -->
+            <div class="space-y-2 text-xs">
+              <div class="font-semibold text-slate-300 text-[11px] uppercase tracking-wider">Ground Truth Audit Checks:</div>
+              <div class="flex items-center justify-between p-2 rounded bg-slate-900/60 border border-slate-800 text-slate-300">
+                <span class="flex items-center space-x-1.5">
+                  <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Unverified Claims</span>
+                </span>
+                <span class="font-bold text-emerald-400">0 detected</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded bg-slate-900/60 border border-slate-800 text-slate-300">
+                <span class="flex items-center space-x-1.5">
+                  <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Citation Density</span>
+                </span>
+                <span class="font-bold text-slate-200">100% mapped</span>
+              </div>
+              <div class="flex items-center justify-between p-2 rounded bg-slate-900/60 border border-slate-800 text-slate-300">
+                <span class="flex items-center space-x-1.5">
+                  <i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Invented Dates / Owners</span>
+                </span>
+                <span class="font-bold text-emerald-400">Strictly Guarded</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Speaker-wise Accountability Recaps -->
+          <div class="glass-panel p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="user-check" class="w-5 h-5 text-sky-400"></i>
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Speaker Accountability</h3>
+              </div>
+            </div>
+
+            <div id="speaker-summaries-container" class="space-y-3">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: DATA WAREHOUSE & OLAP -->
+    <!-- ========================================== -->
+    <section id="tab-content-warehouse" class="tab-pane hidden space-y-6">
+      
+      <!-- Top Overview Banner -->
+      <div class="glass-panel p-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center space-x-2">
+            <i data-lucide="database" class="w-5 h-5 text-brand-400"></i>
+            <h2 class="text-base font-bold text-slate-100">Meeting Data Warehouse & OLAP Engine</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">Multi-dimensional Star Schema converting unstructured audio into queryable decision intelligence</p>
+        </div>
+
+        <div class="flex items-center space-x-3 text-xs">
+          <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+            <span class="text-slate-500">Fact Tables:</span> <strong class="text-brand-400 font-mono">4</strong>
+          </div>
+          <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+            <span class="text-slate-500">Dim Tables:</span> <strong class="text-emerald-400 font-mono">4</strong>
+          </div>
+          <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300">
+            <span class="text-slate-500">Total Utterances:</span> <strong class="text-amber-400 font-mono">1,240+</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Star Schema Visual ERD -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="git-merge" class="w-4 h-4 text-brand-400"></i>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Relational Star Schema Diagram</h3>
+          </div>
+          <span class="text-xs text-slate-400">Click any entity to browse raw records</span>
+        </div>
+
+        <!-- Schema Map -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-mono">
+          
+          <!-- Dim Speakers -->
+          <div class="bg-slate-900/90 border border-blue-500/30 p-3 rounded-lg space-y-2">
+            <div class="font-bold text-blue-400 flex items-center justify-between">
+              <span>DimSpeakers</span>
+              <span class="text-[10px] bg-blue-500/10 px-1.5 py-0.5 rounded">DIM</span>
+            </div>
+            <ul class="text-[11px] text-slate-400 space-y-1">
+              <li class="text-white font-semibold">🔑 speaker_id (PK)</li>
+              <li>name</li>
+              <li>role</li>
+              <li>department</li>
+              <li>avg_wpm</li>
+              <li>total_meetings</li>
+            </ul>
+          </div>
+
+          <!-- Fact Meetings (Center) -->
+          <div class="bg-slate-900/90 border border-brand-500/40 p-3 rounded-lg space-y-2 md:col-span-2 shadow-lg shadow-brand-500/10">
+            <div class="font-bold text-brand-400 flex items-center justify-between">
+              <span>FactMeetings & FactDecisions</span>
+              <span class="text-[10px] bg-brand-500/20 text-brand-300 px-1.5 py-0.5 rounded">FACT CUBE</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-400">
+              <ul class="space-y-1">
+                <li class="text-white font-semibold">🔑 meeting_id (PK)</li>
+                <li>🔗 project_id (FK)</li>
+                <li>duration_sec</li>
+                <li>efficiency_score</li>
+                <li>sentiment_score</li>
+              </ul>
+              <ul class="space-y-1">
+                <li class="text-white font-semibold">🔑 decision_id (PK)</li>
+                <li>🔗 topic_id (FK)</li>
+                <li>🔗 decided_by (FK)</li>
+                <li>impact_level</li>
+                <li>timestamp_sec</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Dim Topics -->
+          <div class="bg-slate-900/90 border border-emerald-500/30 p-3 rounded-lg space-y-2">
+            <div class="font-bold text-emerald-400 flex items-center justify-between">
+              <span>DimTopics</span>
+              <span class="text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded">DIM</span>
+            </div>
+            <ul class="text-[11px] text-slate-400 space-y-1">
+              <li class="text-white font-semibold">🔑 topic_id (PK)</li>
+              <li>name</li>
+              <li>category</li>
+              <li>sentiment_bias</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Interactive OLAP Cube Builder & Slice & Dice -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="sliders" class="w-4 h-4 text-emerald-400"></i>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Interactive OLAP Cube: Slice & Dice Matrix</h3>
+          </div>
+
+          <!-- OLAP Query Selectors -->
+          <div class="flex flex-wrap items-center gap-3 text-xs">
+            <div class="flex items-center space-x-1.5">
+              <span class="text-slate-400">Row Dim:</span>
+              <select id="olap-row-dim" class="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1">
+                <option value="department" selected>Department</option>
+                <option value="speaker">Speaker</option>
+                <option value="topic">Topic Category</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <span class="text-slate-400">Col Dim:</span>
+              <select id="olap-col-dim" class="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1">
+                <option value="quarter" selected>Quarter (Time)</option>
+                <option value="project">Project</option>
+              </select>
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <span class="text-slate-400">Measure:</span>
+              <select id="olap-metric" class="bg-slate-900 border border-slate-700 text-white rounded px-2 py-1">
+                <option value="decisions" selected>Decisions Count</option>
+                <option value="action_items">Action Items</option>
+                <option value="meeting_hours">Total Meeting Hours</option>
+                <option value="efficiency_avg">Avg Efficiency Score</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rendered OLAP Pivot Table -->
+        <div class="overflow-x-auto">
+          <table class="olap-table w-full text-left" id="olap-pivot-table">
+            <!-- Rendered dynamically -->
+          </table>
+        </div>
+      </div>
+
+      <!-- Warehouse Raw Table Data Explorer Tabs -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="table-2" class="w-4 h-4 text-purple-400"></i>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Warehouse Table Explorer</h3>
+          </div>
+
+          <div class="flex items-center space-x-2 text-xs">
+            <button data-table="FactMeetings" class="wh-tab-btn active px-2.5 py-1 rounded bg-brand-600 text-white font-medium">FactMeetings</button>
+            <button data-table="FactDecisions" class="wh-tab-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-medium hover:text-white">FactDecisions</button>
+            <button data-table="FactActionItems" class="wh-tab-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-medium hover:text-white">FactActionItems</button>
+            <button data-table="DimSpeakers" class="wh-tab-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-medium hover:text-white">DimSpeakers</button>
+            <button data-table="DimTopics" class="wh-tab-btn px-2.5 py-1 rounded bg-slate-800 text-slate-400 font-medium hover:text-white">DimTopics</button>
+          </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="overflow-x-auto max-h-72 overflow-y-auto">
+          <table class="w-full text-left text-xs" id="warehouse-table-viewer">
+            <!-- Populated dynamically -->
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: MEETING KNOWLEDGE BASE & Q&A -->
+    <!-- ========================================== -->
+    <section id="tab-content-qa" class="tab-pane hidden space-y-6">
+      
+      <!-- Top Search & Ask Bar -->
+      <div class="glass-panel p-6 space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+            <i data-lucide="bot" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-white">Ask About This Meeting & Cross-Meeting Knowledge Base</h2>
+            <p class="text-xs text-slate-400">Strictly grounded semantic retrieval with verifiable timestamp citations</p>
+          </div>
+        </div>
+
+        <!-- Preset Prompt Suggestions -->
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="text-slate-500 self-center">Try asking:</span>
+          <button class="qa-suggestion px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+            "What was decided regarding database migration?"
+          </button>
+          <button class="qa-suggestion px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+            "Who is responsible for the benchmarks and what is the deadline?"
+          </button>
+          <button class="qa-suggestion px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+            "What security mandates did Marcus set for SOC 2?"
+          </button>
+          <button class="qa-suggestion px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+            "What was the approved budget and headcount?"
+          </button>
+        </div>
+
+        <!-- Chat Input Form -->
+        <form id="qa-form" class="flex gap-2">
+          <div class="relative flex-1">
+            <input type="text" id="qa-input" placeholder="Ask any question about decisions, action items, participants, or technical discussions..." 
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition shadow-inner">
+          </div>
+          <button type="submit" class="px-5 py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm rounded-xl transition flex items-center space-x-2 shadow-md shadow-brand-600/25">
+            <span>Query</span>
+            <i data-lucide="send" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+
+      <!-- Q&A Conversation Feed -->
+      <div id="qa-chat-feed" class="space-y-4">
+        <!-- Messages rendered dynamically -->
+      </div>
+
+      <!-- Cross-Meeting Knowledge Explorer -->
+      <div class="glass-panel p-5 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="archive" class="w-4 h-4 text-brand-400"></i>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Historical Knowledge Warehouse (All Meetings)</h3>
+          </div>
+          <span class="text-xs text-slate-400">Search 4 Enterprise Archives</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Decisions Archive -->
+          <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-slate-300">All Decisions Log</span>
+              <span class="text-[10px] font-mono bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded">Warehouse Fact</span>
+            </div>
+            <div id="archive-decisions-list" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Action Items Backlog -->
+          <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-slate-300">All Action Items</span>
+              <span class="text-[10px] font-mono bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded">Warehouse Fact</span>
+            </div>
+            <div id="archive-actions-list" class="space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Meeting Efficiency Metrics -->
+          <div class="bg-slate-900/60 border border-slate-800 p-4 rounded-xl space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase text-slate-300">Meeting Velocity</span>
+              <span class="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded">Analytics</span>
+            </div>
+            <div id="archive-metrics-list" class="space-y-2 text-xs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Ingestion / Live Session Modal -->
+  <div id="modal-new-meeting" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="upload-cloud" class="w-5 h-5 text-brand-400"></i>
+          <h3 class="text-base font-bold text-white">Ingest Multimedia Recording</h3>
+        </div>
+        <button id="modal-close" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- File Upload Zone -->
+      <div class="border-2 border-dashed border-slate-700 hover:border-brand-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-950/50">
+        <i data-lucide="file-audio" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
+        <div class="text-sm font-semibold text-slate-200">Drag & drop audio or video recording</div>
+        <div class="text-xs text-slate-500 mt-1">Supports MP3, WAV, M4A, WebM, MP4 (Max 500MB)</div>
+        <input type="file" id="modal-file-input" class="hidden" accept="audio/*,video/*">
+      </div>
+
+      <!-- Or Choose Demo Recording -->
+      <div class="space-y-2">
+        <div class="text-xs font-medium text-slate-400 uppercase tracking-wider">Or Load Preset Multi-Speaker Recording:</div>
+        <div class="grid grid-cols-1 gap-2">
+          <button data-load="mtg_001" class="modal-preset-btn text-left p-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+            <div class="text-xs font-bold text-white">Q4 Product Strategy & Architecture Migration</div>
+            <div class="text-[11px] text-slate-400">4 Speakers • 7:45 duration • pgvector & zero-trust auth</div>
+          </button>
+          <button data-load="mtg_002" class="modal-preset-btn text-left p-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition">
+            <div class="text-xs font-bold text-white">AI Gateway Security & Enterprise Privacy Review</div>
+            <div class="text-[11px] text-slate-400">3 Speakers • 30:20 duration • Client-side PII masking</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-950/70 text-slate-500 text-xs py-4 px-4 sm:px-8 mt-auto">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="font-bold text-slate-300">ApexMeeting</span>
+        <span>•</span>
+        <span>Intelligent Meeting Analytics and Knowledge Mining System</span>
+      </div>
+      <div class="flex items-center space-x-4">
+        <span>Audio Processing</span>
+        <span>•</span>
+        <span>Speech Diarization</span>
+        <span>•</span>
+        <span>NLP Grounding</span>
+        <span>•</span>
+        <span>Data Warehouse & OLAP</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- App Logic Scripts -->
+  <script src="data-warehouse.js"></script>
+  <script src="nlp-engine.js"></script>
+  <script src="audio-processor.js"></script>
+  <script src="export-engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
